@@ -1,0 +1,143 @@
+Feature: APPLIED QTY (apl_qty) Calculation in Life Sciences Digital Supply Chain
+
+  As a system managing inventory transactions,
+  I want to calculate the APPLIED QTY (apl_qty) based on cumulative and transactional quantity fields,
+  So that inventory allocation, returns, damaged goods, and negative transactions are accurately tracked and controlled in real time.
+
+  Background:
+    Given the following input fields are present in the inventory transaction record:
+      | Field Name                    | Data Type | Description                                                      |
+      |-------------------------------|-----------|------------------------------------------------------------------|
+      | ref_txn_qty                   | Integer   | Reference transaction quantity                                   |
+      | cumulative_txn_qty            | Integer   | Cumulative transaction quantity                                  |
+      | cumulative_ref_ord_sched_qty  | Integer   | Cumulative reference order scheduled quantity                    |
+      | txn_type                      | String    | Transaction type (e.g., 'SALE', 'RETURN', 'DAMAGE', 'ADJUST')   |
+      | inventory_location            | String    | Inventory location identifier                                   |
+      | txn_date                      | Date      | Transaction date in 'YYYY-MM-DD' format                         |
+    And the output must include:
+      | Field Name | Data Type | Description                |
+      |------------|-----------|----------------------------|
+      | apl_qty    | Integer   | Calculated applied quantity|
+
+  Scenario Outline: Calculate apl_qty for standard positive transactions
+    Given ref_txn_qty is <ref_txn_qty>
+    And cumulative_txn_qty is <cumulative_txn_qty>
+    And cumulative_ref_ord_sched_qty is <cumulative_ref_ord_sched_qty>
+    And txn_type is "<txn_type>"
+    When the transaction is processed
+    Then apl_qty should be calculated as <expected_apl_qty>
+    And the output record should include apl_qty with value <expected_apl_qty>
+
+    Examples:
+      | ref_txn_qty | cumulative_txn_qty | cumulative_ref_ord_sched_qty | txn_type | expected_apl_qty |
+      | 100         | 200                | 150                          | SALE     | 50               |
+      | 50          | 120                | 100                          | SALE     | 20               |
+      | 30          | 80                 | 80                           | SALE     | 0                |
+
+  Scenario Outline: Calculate apl_qty for return transactions
+    Given ref_txn_qty is <ref_txn_qty>
+    And cumulative_txn_qty is <cumulative_txn_qty>
+    And cumulative_ref_ord_sched_qty is <cumulative_ref_ord_sched_qty>
+    And txn_type is "<txn_type>"
+    When the transaction is processed
+    Then apl_qty should be calculated as <expected_apl_qty>
+    And the output record should include apl_qty with value <expected_apl_qty>
+
+    Examples:
+      | ref_txn_qty | cumulative_txn_qty | cumulative_ref_ord_sched_qty | txn_type | expected_apl_qty |
+      | -20         | 180                | 160                          | RETURN   | -20              |
+      | -10         | 170                | 170                          | RETURN   | 0                |
+      | -5          | 165                | 160                          | RETURN   | -5               |
+
+  Scenario Outline: Calculate apl_qty for damaged goods transactions
+    Given ref_txn_qty is <ref_txn_qty>
+    And cumulative_txn_qty is <cumulative_txn_qty>
+    And cumulative_ref_ord_sched_qty is <cumulative_ref_ord_sched_qty>
+    And txn_type is "<txn_type>"
+    When the transaction is processed
+    Then apl_qty should be calculated as <expected_apl_qty>
+    And the output record should include apl_qty with value <expected_apl_qty>
+
+    Examples:
+      | ref_txn_qty | cumulative_txn_qty | cumulative_ref_ord_sched_qty | txn_type | expected_apl_qty |
+      | -15         | 150                | 140                          | DAMAGE   | -10              |
+      | -10         | 140                | 140                          | DAMAGE   | 0                |
+      | -5          | 135                | 130                          | DAMAGE   | -5               |
+
+  Scenario Outline: Error when input fields are missing or invalid
+    Given ref_txn_qty is <ref_txn_qty>
+    And cumulative_txn_qty is <cumulative_txn_qty>
+    And cumulative_ref_ord_sched_qty is <cumulative_ref_ord_sched_qty>
+    And txn_type is "<txn_type>"
+    When the transaction is processed
+    Then an error should be raised with message "<error_message>"
+
+    Examples:
+      | ref_txn_qty | cumulative_txn_qty | cumulative_ref_ord_sched_qty | txn_type | error_message                                 |
+      | null        | 100                | 90                           | SALE     | "ref_txn_qty is required and cannot be null"  |
+      | 50          | null               | 90                           | SALE     | "cumulative_txn_qty is required and cannot be null" |
+      | 50          | 100                | null                         | SALE     | "cumulative_ref_ord_sched_qty is required and cannot be null" |
+      | 50          | 100                | 90                           |          | "txn_type is required and cannot be null"     |
+
+  Scenario Outline: Validation of data types and value ranges
+    Given ref_txn_qty is <ref_txn_qty>
+    And cumulative_txn_qty is <cumulative_txn_qty>
+    And cumulative_ref_ord_sched_qty is <cumulative_ref_ord_sched_qty>
+    And txn_type is "<txn_type>"
+    When the transaction is processed
+    Then an error should be raised with message "<error_message>"
+
+    Examples:
+      | ref_txn_qty | cumulative_txn_qty | cumulative_ref_ord_sched_qty | txn_type | error_message                                 |
+      | "abc"       | 100                | 90                           | SALE     | "ref_txn_qty must be an integer"              |
+      | 50          | "xyz"              | 90                           | SALE     | "cumulative_txn_qty must be an integer"       |
+      | 50          | 100                | "pqr"                        | SALE     | "cumulative_ref_ord_sched_qty must be an integer" |
+      | 50          | 100                | 90                           | 123      | "txn_type must be a string"                   |
+
+  Scenario: Calculate apl_qty when cumulative_ref_ord_sched_qty >= cumulative_txn_qty
+    Given ref_txn_qty is 40
+    And cumulative_txn_qty is 100
+    And cumulative_ref_ord_sched_qty is 120
+    And txn_type is "SALE"
+    When the transaction is processed
+    Then apl_qty should be calculated as 0
+    And the output record should include apl_qty with value 0
+
+  Scenario: Calculate apl_qty when ref_txn_qty is negative and cumulative_ref_ord_sched_qty >= cumulative_txn_qty
+    Given ref_txn_qty is -10
+    And cumulative_txn_qty is 100
+    And cumulative_ref_ord_sched_qty is 110
+    And txn_type is "RETURN"
+    When the transaction is processed
+    Then apl_qty should be calculated as 0
+    And the output record should include apl_qty with value 0
+
+  Scenario: Calculate apl_qty for adjustment transactions
+    Given ref_txn_qty is 25
+    And cumulative_txn_qty is 75
+    And cumulative_ref_ord_sched_qty is 50
+    And txn_type is "ADJUST"
+    When the transaction is processed
+    Then apl_qty should be calculated as 25
+    And the output record should include apl_qty with value 25
+
+  # Validation Rules
+  # - ref_txn_qty, cumulative_txn_qty, cumulative_ref_ord_sched_qty must be integers and not null
+  # - txn_type must be a non-null string and one of: 'SALE', 'RETURN', 'DAMAGE', 'ADJUST'
+  # - If cumulative_ref_ord_sched_qty >= cumulative_txn_qty, then apl_qty = 0
+  # - Otherwise, apl_qty = ref_txn_qty
+  # - Negative ref_txn_qty is allowed for 'RETURN' and 'DAMAGE' only; error otherwise
+  # - Error messages must be explicit and field-specific
+
+  Scenario Outline: Error when negative ref_txn_qty is used with invalid txn_type
+    Given ref_txn_qty is <ref_txn_qty>
+    And cumulative_txn_qty is <cumulative_txn_qty>
+    And cumulative_ref_ord_sched_qty is <cumulative_ref_ord_sched_qty>
+    And txn_type is "<txn_type>"
+    When the transaction is processed
+    Then an error should be raised with message "<error_message>"
+
+    Examples:
+      | ref_txn_qty | cumulative_txn_qty | cumulative_ref_ord_sched_qty | txn_type | error_message                                 |
+      | -10         | 100                | 90                           | SALE     | "Negative ref_txn_qty is only allowed for RETURN or DAMAGE transactions" |
+      | -5          | 80                 | 70                           | ADJUST   | "Negative ref_txn_qty is only allowed for RETURN or DAMAGE transactions" |
