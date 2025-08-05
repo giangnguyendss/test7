@@ -1,0 +1,119 @@
+Feature: Calculation of apl_qty in f_inv_movmnt_apl_qty table
+
+  The system shall calculate the apl_qty field in the purgo_playground.f_inv_movmnt_apl_qty table
+  based on the relationships and logic defined for the following fields:
+  - ref_txn_qty (decimal(3,1))
+  - cumulative_txn_qty (decimal(4,1))
+  - cumulative_ref_ord_sched_qty (decimal(4,1))
+  - ref_ord_sched_qty (decimal(3,1))
+  - prior_cumulative_txn_qty (decimal(3,1))
+  - prior_cumulative_ref_ord_sched_qty (decimal(3,1))
+  The calculation must follow the specified conditional logic and handle all error and edge cases.
+
+  Background:
+    Given the following columns exist in the purgo_playground.f_inv_movmnt_apl_qty table:
+      | txn_id | ref_txn_qty | cumulative_txn_qty | cumulative_ref_ord_sched_qty | ref_ord_sched_qty | prior_cumulative_txn_qty | prior_cumulative_ref_ord_sched_qty | apl_qty |
+    And all input fields are of type decimal as specified
+
+  # Happy Path: Condition 1
+  Scenario Outline: Calculate apl_qty using Condition 1 (ref_txn_qty > 0 and cumulative_txn_qty >= cumulative_ref_ord_sched_qty)
+    Given a row in f_inv_movmnt_apl_qty with the following values:
+      | ref_txn_qty | cumulative_txn_qty | cumulative_ref_ord_sched_qty | ref_ord_sched_qty | prior_cumulative_txn_qty | prior_cumulative_ref_ord_sched_qty |
+      | <ref_txn_qty> | <cumulative_txn_qty> | <cumulative_ref_ord_sched_qty> | <ref_ord_sched_qty> | <prior_cumulative_txn_qty> | <prior_cumulative_ref_ord_sched_qty> |
+    When the system calculates apl_qty
+    Then the value of apl_qty should be <expected_apl_qty>
+    And the value should be stored in the apl_qty field
+
+    Examples:
+      | ref_txn_qty | cumulative_txn_qty | cumulative_ref_ord_sched_qty | ref_ord_sched_qty | prior_cumulative_txn_qty | prior_cumulative_ref_ord_sched_qty | expected_apl_qty |
+      | 50          | 100                | 90                           | 50                | 40                       | 30                                 | 40              | # 50 - (40-30) = 40
+      | 20          | 100                | 90                           | 20                | 10                       | 5                                  | 15              | # 20 - (10-5) = 15
+      | 30          | 120                | 100                          | 30                | 20                       | 25                                 | 30              | # prior_cumulative_ref_ord_sched_qty >= prior_cumulative_txn_qty, so apl_qty = ref_ord_sched_qty = 30
+
+  # Happy Path: Condition 2
+  Scenario Outline: Calculate apl_qty using Condition 2 (ref_txn_qty > 0 and cumulative_ref_ord_sched_qty >= cumulative_txn_qty)
+    Given a row in f_inv_movmnt_apl_qty with the following values:
+      | ref_txn_qty | cumulative_txn_qty | cumulative_ref_ord_sched_qty | ref_ord_sched_qty | prior_cumulative_txn_qty | prior_cumulative_ref_ord_sched_qty |
+      | <ref_txn_qty> | <cumulative_txn_qty> | <cumulative_ref_ord_sched_qty> | <ref_ord_sched_qty> | <prior_cumulative_txn_qty> | <prior_cumulative_ref_ord_sched_qty> |
+    When the system calculates apl_qty
+    Then the value of apl_qty should be <expected_apl_qty>
+    And the value should be stored in the apl_qty field
+
+    Examples:
+      | ref_txn_qty | cumulative_txn_qty | cumulative_ref_ord_sched_qty | ref_ord_sched_qty | prior_cumulative_txn_qty | prior_cumulative_ref_ord_sched_qty | expected_apl_qty |
+      | 20          | 60                 | 100                          | 30                | 30                       | 25                                 | 20              | # prior_cumulative_ref_ord_sched_qty <= prior_cumulative_txn_qty, so apl_qty = ref_txn_qty = 20
+      | 25          | 40                 | 50                           | 25                | 10                       | 20                                 | 15              | # 25 - (20-10) = 15
+      | 10          | 30                 | 40                           | 10                | 5                        | 10                                 | 5               | # 10 - (10-5) = 5
+
+  # Happy Path: Condition 3
+  Scenario Outline: Calculate apl_qty using Condition 3 (ref_txn_qty < 0, cumulative_txn_qty != 0, cumulative_ref_ord_sched_qty > 0)
+    Given a row in f_inv_movmnt_apl_qty with the following values:
+      | ref_txn_qty | cumulative_txn_qty | cumulative_ref_ord_sched_qty | ref_ord_sched_qty | prior_cumulative_txn_qty | prior_cumulative_ref_ord_sched_qty |
+      | <ref_txn_qty> | <cumulative_txn_qty> | <cumulative_ref_ord_sched_qty> | <ref_ord_sched_qty> | <prior_cumulative_txn_qty> | <prior_cumulative_ref_ord_sched_qty> |
+    When the system calculates apl_qty
+    Then the value of apl_qty should be <expected_apl_qty>
+    And the value should be stored in the apl_qty field
+
+    Examples:
+      | ref_txn_qty | cumulative_txn_qty | cumulative_ref_ord_sched_qty | ref_ord_sched_qty | prior_cumulative_txn_qty | prior_cumulative_ref_ord_sched_qty | expected_apl_qty |
+      | -10         | 80                 | 70                           | 40                | 50                       | 45                                 | -10             |
+      | -5          | 10                 | 5                            | 10                | 2                        | 1                                  | -5              |
+
+  # Default/Edge Case: None of the conditions met
+  Scenario Outline: Set apl_qty to NULL if none of the conditions are met
+    Given a row in f_inv_movmnt_apl_qty with the following values:
+      | ref_txn_qty | cumulative_txn_qty | cumulative_ref_ord_sched_qty | ref_ord_sched_qty | prior_cumulative_txn_qty | prior_cumulative_ref_ord_sched_qty |
+      | <ref_txn_qty> | <cumulative_txn_qty> | <cumulative_ref_ord_sched_qty> | <ref_ord_sched_qty> | <prior_cumulative_txn_qty> | <prior_cumulative_ref_ord_sched_qty> |
+    When the system calculates apl_qty
+    Then the value of apl_qty should be NULL
+
+    Examples:
+      | ref_txn_qty | cumulative_txn_qty | cumulative_ref_ord_sched_qty | ref_ord_sched_qty | prior_cumulative_txn_qty | prior_cumulative_ref_ord_sched_qty |
+      | 0           | 0                  | 0                            | 0                 | 0                        | 0                                  |
+      | 5           | 10                 | 20                           | 5                 | 5                        | 5                                  | # Does not meet any condition
+
+  # Error Handling: NULL or missing input fields
+  Scenario Outline: Set apl_qty to NULL if any required input field is NULL
+    Given a row in f_inv_movmnt_apl_qty with the following values:
+      | ref_txn_qty | cumulative_txn_qty | cumulative_ref_ord_sched_qty | ref_ord_sched_qty | prior_cumulative_txn_qty | prior_cumulative_ref_ord_sched_qty |
+      | <ref_txn_qty> | <cumulative_txn_qty> | <cumulative_ref_ord_sched_qty> | <ref_ord_sched_qty> | <prior_cumulative_txn_qty> | <prior_cumulative_ref_ord_sched_qty> |
+    When the system calculates apl_qty
+    Then the value of apl_qty should be NULL
+
+    Examples:
+      | ref_txn_qty | cumulative_txn_qty | cumulative_ref_ord_sched_qty | ref_ord_sched_qty | prior_cumulative_txn_qty | prior_cumulative_ref_ord_sched_qty |
+      | NULL        | 100                | 90                           | 50                | 40                       | 30                                 |
+      | 50          | NULL               | 90                           | 50                | 40                       | 30                                 |
+      | 50          | 100                | NULL                         | 50                | 40                       | 30                                 |
+      | 50          | 100                | 90                           | NULL              | 40                       | 30                                 |
+      | 50          | 100                | 90                           | 50                | NULL                     | 30                                 |
+      | 50          | 100                | 90                           | 50                | 40                       | NULL                               |
+
+  # Validation: Data type and format
+  Scenario Outline: Reject calculation if input values are not valid decimals
+    Given a row in f_inv_movmnt_apl_qty with the following values:
+      | ref_txn_qty | cumulative_txn_qty | cumulative_ref_ord_sched_qty | ref_ord_sched_qty | prior_cumulative_txn_qty | prior_cumulative_ref_ord_sched_qty |
+      | <ref_txn_qty> | <cumulative_txn_qty> | <cumulative_ref_ord_sched_qty> | <ref_ord_sched_qty> | <prior_cumulative_txn_qty> | <prior_cumulative_ref_ord_sched_qty> |
+    When the system calculates apl_qty
+    Then the system should raise a validation error with message "Invalid decimal value in input fields"
+    And the value of apl_qty should be NULL
+
+    Examples:
+      | ref_txn_qty | cumulative_txn_qty | cumulative_ref_ord_sched_qty | ref_ord_sched_qty | prior_cumulative_txn_qty | prior_cumulative_ref_ord_sched_qty |
+      | 'abc'       | 100                | 90                           | 50                | 40                       | 30                                 |
+      | 50          | 'xyz'              | 90                           | 50                | 40                       | 30                                 |
+      | 50          | 100                | 'NaN'                        | 50                | 40                       | 30                                 |
+
+  # Data-driven test: Sample data from Excel
+  Scenario Outline: Calculate apl_qty for sample data set
+    Given a row in f_inv_movmnt_apl_qty with the following values:
+      | txn_id | ref_txn_qty | cumulative_txn_qty | cumulative_ref_ord_sched_qty | ref_ord_sched_qty | prior_cumulative_txn_qty | prior_cumulative_ref_ord_sched_qty |
+      | <txn_id> | <ref_txn_qty> | <cumulative_txn_qty> | <cumulative_ref_ord_sched_qty> | <ref_ord_sched_qty> | <prior_cumulative_txn_qty> | <prior_cumulative_ref_ord_sched_qty> |
+    When the system calculates apl_qty
+    Then the value of apl_qty should be <expected_apl_qty>
+
+    Examples:
+      | txn_id | ref_txn_qty | cumulative_txn_qty | cumulative_ref_ord_sched_qty | ref_ord_sched_qty | prior_cumulative_txn_qty | prior_cumulative_ref_ord_sched_qty | expected_apl_qty |
+      | 1      | 50          | 100                | 90                           | 50                | 40                       | 30                                 | 40              |
+      | 2      | -10         | 80                 | 70                           | 40                | 50                       | 45                                 | -10             |
+      | 3      | 20          | 60                 | 100                          | 30                | 30                       | 25                                 | 20              |
